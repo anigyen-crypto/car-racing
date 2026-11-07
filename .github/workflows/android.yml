@@ -1,0 +1,60 @@
+name: 🔨 Build Android APK
+
+on:
+  workflow_dispatch:      # allows manual "Run workflow" button
+  push:
+    branches: [main, master]
+
+jobs:
+  build:
+    name: Build APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Fix file permissions (GameCI quirk)
+        run: sudo chown -R $USER:$USER "$GITHUB_WORKSPACE"
+
+      # ---------- Signing ----------
+      # Generates a signing keystore once per run (a signed APK installs directly).
+      - name: Generate signing keystore
+        id: keystore
+        run: |
+          keytool -genkeypair -v \
+            -keystore racing.keystore \
+            -alias racing \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass Racing2026 -keypass Racing2026 \
+            -dname "CN=Car Racing, OU=RacingKit, O=RacingKit, L=City, C=US"
+          echo "b64=$(base64 -w0 racing.keystore)" >> "$GITHUB_OUTPUT"
+
+      # ---------- One-time Unity activation (secrets required, see README) ----------
+      - name: Activate Unity license
+        uses: game-ci/unity-activate@v2
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+
+      # ---------- Build ----------
+      - name: Build Signed APK
+        uses: game-ci/unity-builder@v4
+        env:
+          APK_KEYSTORE_B64: ${{ steps.keystore.outputs.b64 }}
+          APK_KEYSTORE_PASS: Racing2026
+          APK_KEYALIAS: racing
+          APK_KEYALIAS_PASS: Racing2026
+        with:
+          targetPlatform: Android
+          buildMethod: BuildScript.PerformBuild
+          # Editor version is read automatically from ProjectSettings/ProjectVersion.txt
+
+      # ---------- Upload result ----------
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: CarRacing-APK
+          path: build/CarRacing.apk
