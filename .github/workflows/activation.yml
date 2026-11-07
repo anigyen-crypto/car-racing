@@ -1,0 +1,19 @@
+name: 🔑 Get Unity activation file (.alf)
+
+on:
+  workflow_dispatch: # manual run only
+
+jobs:
+  activation:
+    name: Generate .alf
+    runs-on: ubuntu-latest
+    steps:
+      - name: Request activation file
+        id: getalf
+        uses: game-ci/unity-get-activation-file@v2
+
+      - name: Upload .alf
+        uses: actions/upload-artifact@v4
+        with:
+          name: Unity_Activation_File
+          path: ${{ steps.getalf.outputs.filePath }}
